@@ -1,0 +1,98 @@
+#include <iostream>
+#include <vector>
+#include <random>
+#include <sstream>
+#include <openssl/sha.h>
+
+#define POPULATION_SIZE 100
+#define ITERATIONS 20000
+#define MUTATION_RATE 0.005
+#define HASH_DIFFICULTY 24
+#define ALPHA 0.85
+#define ETA 0.02
+#define DIMENSIONS 4
+#define V 1.0
+#define LAMBDA_PARAM 0.1
+
+// Function to generate SHA-256 hash
+std::string sha256(const std::string str) {
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, str.c_str(), str.size());
+    SHA256_Final(hash, &sha256);
+    std::stringstream ss;
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        ss << std::hex << (int)hash[i];
+    }
+    return ss.str();
+}
+
+int main() {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(-1, 1);
+    std::normal_distribution<> perturb(0, ETA);
+    
+    // Step 2: Initialize state space and population
+    std::vector<double> state_space(DIMENSIONS);
+    std::vector<std::vector<double>> population(POPULATION_SIZE, std::vector<double>(DIMENSIONS));
+    
+    for (int i = 0; i < DIMENSIONS; ++i) {
+        state_space[i] = dis(gen);
+    }
+    for (int i = 0; i < POPULATION_SIZE; ++i) {
+        for (int j = 0; j < DIMENSIONS; ++j) {
+            population[i][j] = dis(gen);
+        }
+    }
+    
+    // Step 3: Iterate algorithm
+    for (int iter = 0; iter < ITERATIONS; ++iter) {
+        // Quantum-Inspired Perturbation
+        for (int i = 0; i < DIMENSIONS; ++i) {
+            state_space[i] += perturb(gen);
+        }
+        
+        // Evaluate fitness (not fully utilized in this example)
+        
+        // Select parents, crossover, and mutate
+        int parent1_idx = rand() % POPULATION_SIZE;
+        int parent2_idx = rand() % POPULATION_SIZE;
+        std::vector<double> child(DIMENSIONS);
+        int crossover_point = rand() % DIMENSIONS;
+        for (int i = 0; i < crossover_point; ++i) {
+            child[i] = population[parent1_idx][i];
+        }
+        for (int i = crossover_point; i < DIMENSIONS; ++i) {
+            child[i] = population[parent2_idx][i];
+        }
+        for (int i = 0; i < DIMENSIONS; ++i) {
+            if ((rand() / double(RAND_MAX)) < MUTATION_RATE) {
+                child[i] = dis(gen);
+            }
+        }
+        population.push_back(child);
+        
+        // Update state space with Grover's mechanism
+        std::vector<double> potential(DIMENSIONS);
+        for (int i = 0; i < DIMENSIONS; ++i) {
+            potential[i] = LAMBDA_PARAM * (state_space[i] * state_space[i] - V * V) * (state_space[i] * state_space[i] - V * V);
+            state_space[i] = ALPHA * (state_space[i] * state_space[i] - potential[i]) + (1 - ALPHA) * state_space[i];
+        }
+        
+        // Mining Hash Function
+        double combined_solution = 0.0;
+        for (int i = 0; i < DIMENSIONS; ++i) {
+            combined_solution += state_space[i];
+        }
+        std::string hash_result = sha256(std::to_string(combined_solution));
+        
+        // Check hash difficulty
+        if (std::stoull(hash_result, nullptr, 16) < (1ULL << (256 - HASH_DIFFICULTY))) {
+            std::cout << "Valid block found: " << hash_result << std::endl;
+            break;
+        }
+    }
+    return 0;
+}
